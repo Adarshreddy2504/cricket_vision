@@ -63,6 +63,12 @@ MASK_MAX_HULL_VERTICES = 64
 # Minimum confidence a detection must reach before it is considered at all.
 DETECTOR_CONF_THRESHOLD = 0.25
 
+# Two masks whose confidences are within this band are a TIE, and the tie is
+# broken by consistency with the last accepted estimate rather than by a
+# fraction of a percent of confidence. Confidence is the model's evidence;
+# position is only ours, so it decides a tie and never a contest.
+DETECTOR_CONF_TIE_BAND = 0.05
+
 # The frame is handed to the model at its ORIGINAL resolution and ultralytics
 # letterboxes it to this size itself. Pre-resizing the frame is what squashed
 # frames and broke the aspect ratio in an earlier version of this project.
