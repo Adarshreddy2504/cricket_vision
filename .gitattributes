@@ -1,0 +1,15 @@
+# Normalise line endings: check out LF on every platform, commit LF.
+* text=auto eol=lf
+
+# Binary assets are never line-ending translated.
+*.pt binary
+*.pth binary
+*.ckpt binary
+*.onnx binary
+*.mp4 binary
+*.avi binary
+*.mov binary
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.ico binary
