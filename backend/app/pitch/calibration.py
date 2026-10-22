@@ -175,14 +175,14 @@ class PitchCalibration:
         failure this whole module exists to prevent.
         """
         return {
+            "status": self.status.value,
+            "is_valid": self.is_valid,
+            "reasons": list(self.reasons),
             "frame_number": self.frame_number,
             "image_size": [int(self.image_size[0]), int(self.image_size[1])],
             "corners": self.corners.as_dict(),
             "provenance": self.provenance.value,
             "method": self.method.value,
-            "status": self.status.value,
-            "is_valid": self.is_valid,
-            "reasons": list(self.reasons),
             "confidence": (
                 None if self.confidence is None else round(float(self.confidence), 4)
             ),
@@ -220,12 +220,16 @@ def build_calibration(
     if not ok:
         status = CalibrationStatus.INVALID
         reasons.append(reason)
+    elif provenance is CalibrationProvenance.ASSUMED:
+        # Checked before the method: "these corners were assumed" is the
+        # stronger statement about where they came from, and a template quad
+        # is assumed by definition, so it must not be reported as merely
+        # approximate.
+        status = CalibrationStatus.APPROXIMATE
+        reasons.append("assumed_corners")
     elif method in APPROXIMATE_METHODS:
         status = CalibrationStatus.APPROXIMATE
         reasons.append("approximate_corners")
-    elif provenance is CalibrationProvenance.ASSUMED:
-        status = CalibrationStatus.APPROXIMATE
-        reasons.append("assumed_corners")
     else:
         status = CalibrationStatus.VALID
 

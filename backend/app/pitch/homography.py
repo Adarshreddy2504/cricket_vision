@@ -246,6 +246,12 @@ def build_homography(
     target point. A matrix that passes those checks is a matrix that maps
     the quad it claims to map.
     """
+    # `cv2.getPerspectiveTransform` requires CV_32F in OpenCV 5, so the
+    # CORRESPONDENCES are single precision. The returned matrix is immediately
+    # widened to float64 and every later operation is float64, which leaves a
+    # relative error around 1e-7 -- a micrometre on a 20 m pitch. That is
+    # documented rather than hidden: `PitchProjection.units` says "metre", and
+    # the tests pin the metric answers to 0.1 mm.
     src = np.array(corners.points(), dtype=np.float32)
     dst = np.array(target, dtype=np.float32)
     if src.shape != (4, 2) or dst.shape != (4, 2):
