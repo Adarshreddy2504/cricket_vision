@@ -52,6 +52,14 @@ happens when they are missing.
 pytest backend
 ```
 
+## Linting
+
+```bash
+ruff check backend
+```
+
+The rules and the line length are pinned in [`ruff.toml`](ruff.toml).
+
 ## Documentation
 
 - [`docs/TRACKING.md`](docs/TRACKING.md) — the ball-tracking module: setup,
