@@ -278,6 +278,7 @@ class _YoloPitchDetector:
         self,
         model_path: str | Path,
         *,
+        model: object | None = None,
         conf: float = DETECTOR_CONF_THRESHOLD,
         imgsz: int = DETECTOR_IMGSZ,
         device: str = "auto",
@@ -295,7 +296,13 @@ class _YoloPitchDetector:
         self.min_aspect_ratio = float(min_aspect_ratio)
         self.max_aspect_ratio = float(max_aspect_ratio)
 
-        self._model = None
+        # A pre-loaded model may be injected, which is how the tests exercise
+        # the extraction and selection logic without the weights being present.
+        # An injected model must implement the `ultralytics.YOLO` contract:
+        # `predict(source=..., conf=..., imgsz=..., device=..., verbose=False)`
+        # returning a sequence whose first element has `boxes` and `masks`.
+        self._injected = model is not None
+        self._model = model
         self._load_error: str | None = None
         self._last_center: tuple[float, float] | None = None
 
@@ -310,11 +317,20 @@ class _YoloPitchDetector:
     @property
     def available(self) -> bool:
         """Can this detector run at all? False when the weights are missing."""
+        if self._injected:
+            return True
         return self.model_path.is_file()
+
+    @property
+    def load_error(self) -> str | None:
+        """Why the weights could not be loaded, or None when they are usable."""
+        return self._load_error
 
     @property
     def disabled_reason(self) -> str | None:
         """Why the detector cannot run, or None when it can."""
+        if self._injected:
+            return None
         if self.model_path.is_file():
             return None
         return f"weights not found at {self.model_path}"
@@ -332,7 +348,7 @@ class _YoloPitchDetector:
         image_size = (width, height)
         self.frames_seen += 1
 
-        if not self.model_path.is_file():
+        if not self._injected and not self.model_path.is_file():
             self.unavailable += 1
             return PitchDetection(
                 status=DetectionStatus.UNAVAILABLE,
@@ -420,6 +436,8 @@ class _YoloPitchDetector:
         fetch a checkpoint over the network when the file is not there, and
         this module never downloads weights.
         """
+        if self._injected:
+            return self._model
         if self._model is not None:
             return self._model
         if self._load_error is not None:
