@@ -12,8 +12,8 @@ selection, filtering and coordinate-scaling logic under test is the real one.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Iterable, Optional, Sequence
 
 import numpy as np
 
@@ -56,7 +56,7 @@ class StubBoxes:
 class StubResult:
     """One element of the list `model.predict()` returns."""
 
-    def __init__(self, rows: Optional[Sequence[Sequence[float]]]):
+    def __init__(self, rows: Sequence[Sequence[float]] | None):
         self.boxes = None if rows is None else StubBoxes(rows)
 
 
@@ -69,7 +69,7 @@ class StubYoloModel:
     rows in the coordinates of the frame the model was handed.
     """
 
-    def __init__(self, frames: Optional[Iterable[Optional[Sequence[Sequence[float]]]]] = None):
+    def __init__(self, frames: Iterable[Sequence[Sequence[float]] | None] | None = None):
         self._frames = list(frames or [])
         self.calls: list[dict] = []
 
@@ -96,7 +96,7 @@ class StubDetector:
 
     def __init__(
         self,
-        windows: Optional[Sequence[tuple[int, int]]] = None,
+        windows: Sequence[tuple[int, int]] | None = None,
         confidence: float = 0.9,
         model_path: str = "stub",
     ) -> None:
@@ -132,7 +132,7 @@ class SequenceDetector:
     script a prefix and leave the tail empty.
     """
 
-    def __init__(self, positions: Sequence[Optional[tuple[int, int]]], confidence: float = 0.9):
+    def __init__(self, positions: Sequence[tuple[int, int] | None], confidence: float = 0.9):
         self.model = object()
         self.model_path = "sequence"
         self.device = "stub"

@@ -370,6 +370,16 @@ python -m pytest backend -q
 `backend/conftest.py` puts `backend/` on `sys.path`, so `pytest` works from
 the repository root as well as from `backend/` itself.
 
+### Linting
+
+```bash
+ruff check backend
+```
+
+The rules and the line length are pinned in `ruff.toml` at the repository
+root. The lint configuration lives there rather than in a `pyproject.toml`
+because the project has no packaging metadata yet.
+
 **The tests do not need the model weights.** The stub in
 `backend/tests/helpers.py` implements the exact `ultralytics.YOLO` contract
 the detector uses, so the real selection, filtering and coordinate-scaling

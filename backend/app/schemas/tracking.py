@@ -18,7 +18,7 @@ INVARIANTS ENFORCED HERE RATHER THAN TRUSTED
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Literal, Optional
+from typing import Literal
 
 TrajectorySource = Literal["detected", "predicted"]
 
@@ -47,8 +47,8 @@ class TrajectoryPoint:
     x: int
     y: int
     source: TrajectorySource
-    confidence: Optional[float] = None
-    track_id: Optional[int] = None
+    confidence: float | None = None
+    track_id: int | None = None
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -94,7 +94,9 @@ class Trajectory:
         frames = sorted(p.frame for p in self.points)
         gaps: list[list[int]] = []
         run_start = None
-        for prev, cur in zip(frames, frames[1:]):
+        # `frames[1:]` is deliberately one element shorter than `frames`: the
+        # zip walks the consecutive pairs.
+        for prev, cur in zip(frames, frames[1:], strict=False):
             if cur - prev > 1:
                 if run_start is None:
                     run_start = prev + 1

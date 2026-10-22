@@ -172,7 +172,7 @@ class TrackingConfig:
     min_track_detections: int = MIN_TRACK_DETECTIONS
 
     @classmethod
-    def from_env(cls) -> "TrackingConfig":
+    def from_env(cls) -> TrackingConfig:
         """Build a configuration from the environment."""
         return cls(
             model_path=Path(BALL_MODEL_PATH),

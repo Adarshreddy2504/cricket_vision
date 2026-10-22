@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import cv2
 import numpy as np
@@ -76,7 +76,7 @@ class BallDetector:
         resize_height: int = DETECTOR_RESIZE_H,
         min_diag_px: int = DETECTOR_MIN_DIAG_PX,
         max_diag_px: int = DETECTOR_MAX_DIAG_PX,
-        device: Optional[str] = None,
+        device: str | None = None,
     ) -> None:
         self.conf_threshold = float(conf_threshold)
         self.resize_width = int(resize_width)
@@ -86,7 +86,7 @@ class BallDetector:
         self._model_path = Path(model_path) if model_path is not None else Path(BALL_MODEL_PATH)
 
         self._model = model
-        self._load_error: Optional[str] = None
+        self._load_error: str | None = None
         if model is None:
             self._model, self._load_error, auto_device = self._load(self._model_path)
             self._device = auto_device if device in (None, "auto") else device
@@ -126,7 +126,7 @@ class BallDetector:
         return self._model is not None
 
     @property
-    def load_error(self) -> Optional[str]:
+    def load_error(self) -> str | None:
         """Why the model is unavailable, or None when it loaded."""
         return self._load_error
 
@@ -145,7 +145,7 @@ class BallDetector:
         """The inference device ultralytics was told to use."""
         return self._device
 
-    def detect(self, frame: np.ndarray) -> Optional[tuple[int, int]]:
+    def detect(self, frame: np.ndarray) -> tuple[int, int] | None:
         """
         Run inference on *frame* (full-resolution BGR).
 
@@ -158,7 +158,7 @@ class BallDetector:
 
     def detect_with_confidence(
         self, frame: np.ndarray
-    ) -> tuple[Optional[int], Optional[int], Optional[float]]:
+    ) -> tuple[int | None, int | None, float | None]:
         """
         Same as :meth:`detect` but also returns the winning box confidence.
 

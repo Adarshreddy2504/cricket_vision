@@ -82,9 +82,18 @@ class TestDetectorSizeFilter(unittest.TestCase):
         self.assertEqual(detector.detect_with_confidence(make_frame()), (None, None, None))
 
     def test_undersized_box_is_refused(self):
-        tiny = [[0, 0, 1, 1, 0.95, 0]]
+        """A box too small to be a ball is noise."""
+        # A square whose diagonal falls below the plausible minimum.
+        side = max(1, DETECTOR_MIN_DIAG_PX // 2)
+        tiny = [[0, 0, side, side, 0.95, 0]]
         detector = BallDetector(model=StubYoloModel([tiny]))
         self.assertEqual(detector.detect_with_confidence(make_frame()), (None, None, None))
+
+    def test_the_size_filter_bounds_come_from_the_constants(self):
+        """The filter's bounds are the configured ones, not hard-coded numbers."""
+        detector = BallDetector(model=StubYoloModel([[[0, 0, 20, 20, 0.95, 0]]]))
+        self.assertEqual(detector.min_diag_px, DETECTOR_MIN_DIAG_PX)
+        self.assertEqual(detector.max_diag_px, DETECTOR_MAX_DIAG_PX)
 
     def test_a_refused_box_does_not_hide_a_valid_one(self):
         rows = [

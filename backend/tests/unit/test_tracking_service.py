@@ -147,7 +147,11 @@ class TestTrackIdentity(unittest.TestCase):
 
     def test_track_ids_increase_monotonically(self):
         detector = SequenceDetector(
-            [(100, 100)] + [None] * (MAX_MISSED + 1) + [(900, 600)] + [None] * (MAX_MISSED + 1) + [(200, 200)]
+            [(100, 100)]
+            + [None] * (MAX_MISSED + 1)
+            + [(900, 600)]
+            + [None] * (MAX_MISSED + 1)
+            + [(200, 200)]
         )
         service = TrackingService(detector=detector)
         ids = []

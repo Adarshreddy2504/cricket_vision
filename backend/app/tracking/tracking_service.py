@@ -34,9 +34,10 @@ went — and the rest of the system is built on top of that answer.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any
 
 import cv2
 
@@ -67,11 +68,11 @@ class FrameTracking:
     """
 
     frame: int
-    position: Optional[tuple] = None
-    source: Optional[str] = None
-    confidence: Optional[float] = None
-    track_id: Optional[int] = None
-    detection: Optional[tuple] = None
+    position: tuple | None = None
+    source: str | None = None
+    confidence: float | None = None
+    track_id: int | None = None
+    detection: tuple | None = None
     gated_out: bool = False
 
     def as_dict(self) -> dict:
@@ -101,11 +102,11 @@ class Track:
     min_detections: int = MIN_TRACK_DETECTIONS
 
     @property
-    def start_frame(self) -> Optional[int]:
+    def start_frame(self) -> int | None:
         return self.points[0].frame if self.points else None
 
     @property
-    def end_frame(self) -> Optional[int]:
+    def end_frame(self) -> int | None:
         return self.points[-1].frame if self.points else None
 
     @property
@@ -154,7 +155,7 @@ class TrackingResult:
     frames_decoded: int = 0
     detection_frames: int = 0
     predicted_frames: int = 0
-    video: Optional[dict] = None
+    video: dict | None = None
 
     @property
     def confirmed_tracks(self) -> list[Track]:
@@ -190,7 +191,7 @@ class TrackingService:
     def __init__(
         self,
         detector: Any = None,
-        config: Optional[TrackingConfig] = None,
+        config: TrackingConfig | None = None,
     ) -> None:
         self.config = config if config is not None else TRACKING_CONFIG
 
@@ -204,7 +205,7 @@ class TrackingService:
 
         self._frame_counter = 0
         self._next_track_id = 1
-        self._current_track_id: Optional[int] = None
+        self._current_track_id: int | None = None
 
         self._points: list[TrajectoryPoint] = []
         self._tracks: dict[int, Track] = {}
@@ -213,7 +214,7 @@ class TrackingService:
         self._frames_decoded = 0
         self._detection_frames = 0
         self._predicted_frames = 0
-        self._video: Optional[dict] = None
+        self._video: dict | None = None
 
     # ── Construction helpers ──────────────────────────────────────────────────
     def _build_detector(self) -> BallDetector:
@@ -250,7 +251,7 @@ class TrackingService:
             )
 
     # ── Per-frame tracking ────────────────────────────────────────────────────
-    def process_frame(self, frame, frame_no: Optional[int] = None) -> FrameTracking:
+    def process_frame(self, frame, frame_no: int | None = None) -> FrameTracking:
         """
         Track one frame.
 
@@ -278,8 +279,8 @@ class TrackingService:
 
         result = self._tracker.update(detection, frame_no)
 
-        track_id: Optional[int] = None
-        point_confidence: Optional[float] = None
+        track_id: int | None = None
+        point_confidence: float | None = None
 
         if result.source == "detected":
             # A new flight begins whenever the tracker had no live track to

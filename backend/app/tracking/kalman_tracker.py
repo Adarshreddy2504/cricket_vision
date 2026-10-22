@@ -51,7 +51,7 @@ Two rules about that refusal matter, and both are easy to get wrong:
 from __future__ import annotations
 
 from collections import deque
-from typing import NamedTuple, Optional
+from typing import NamedTuple
 
 import numpy as np
 
@@ -86,8 +86,8 @@ class TrackResult(NamedTuple):
                was not where I expected", which are different events.
     """
 
-    position: Optional[tuple]
-    source: Optional[str]
+    position: tuple | None
+    source: str | None
     gated_out: bool = False
 
 
@@ -186,7 +186,7 @@ class BallTracker:
         self.missed_frames = 0
 
     # ── Per-frame update ──────────────────────────────────────────────────────
-    def update(self, detection: Optional[tuple], frame_no: int) -> TrackResult:
+    def update(self, detection: tuple | None, frame_no: int) -> TrackResult:
         """
         Feed one frame's detection.
 
