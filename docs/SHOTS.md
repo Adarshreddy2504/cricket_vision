@@ -301,7 +301,7 @@ the 68 MB weights. Two groups are skipped by design:
 To run that last test against a local checkpoint:
 
 ```powershell
-$env:CRICKET_SHOT_MODEL = "D:\cricket_vision\backend\models\shot_classifier.ckpt"
+$env:CRICKET_SHOT_MODEL = "backend\models\shot_classifier.ckpt"
 pytest backend -q -k RealCheckpoint
 ```
 
