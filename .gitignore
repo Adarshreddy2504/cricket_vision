@@ -46,8 +46,9 @@ logs/
 *.log
 
 # ── Model weights ─────────────────────────────────────────────────────────────
-# The detector weights are NOT tracked in git. See docs/TRACKING.md for how to
-# obtain them and how to point the loader at a local copy.
+# Model weights are NOT tracked in git. See docs/TRACKING.md, docs/PITCH.md and
+# docs/SHOTS.md for how to obtain them and how to point the loaders at a local
+# copy.
 *.pt
 *.pth
 *.ckpt
