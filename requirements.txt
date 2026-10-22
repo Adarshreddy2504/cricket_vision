@@ -1,6 +1,7 @@
-# Runtime dependencies for the CricketVision ball-tracking backend.
+# Runtime dependencies for the CricketVision backend.
 #
-# These are the modules the tracking code actually imports. Install with:
+# These are the modules the tracking, pitch, shot and HTTP API code actually
+# imports. Install with:
 #
 #     pip install -r requirements.txt
 #
@@ -26,6 +27,15 @@ opencv-python>=4.10,<6
 ultralytics>=8.4,<9
 torch>=2.5
 torchvision>=0.20
+
+# ── HTTP API ──────────────────────────────────────────────────────────────────
+# FastAPI serves the six-route schema 2.1 contract; Uvicorn is the server.
+# python-multipart is required for the multipart upload routes, and httpx backs
+# the FastAPI test client.
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+python-multipart>=0.0.9,<1
+httpx>=0.27,<1
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 # Reads an optional `.env` from the project root so a model path can be

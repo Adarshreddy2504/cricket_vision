@@ -51,6 +51,7 @@ frontend/.env.local
 data/runs/
 data/uploads/
 data/samples/
+data/tmp/
 logs/
 *.log
 
