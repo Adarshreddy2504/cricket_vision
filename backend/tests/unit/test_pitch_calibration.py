@@ -25,7 +25,12 @@ from app.pitch.calibration import (
 from app.pitch.constants import CREASE_WIDTH_M, PITCH_LENGTH_M
 from app.pitch.corners import PitchCorners, order_corners
 from app.pitch.errors import CalibrationError
-from app.pitch.geometry import GeometryProvenance, LongAxis, PitchGeometry
+from app.pitch.geometry import (
+    MEASURED_JUSTIFICATION,
+    GeometryProvenance,
+    LongAxis,
+    PitchGeometry,
+)
 from tests.pitch_helpers import FRAME_SIZE, trapezoid
 
 # A well-formed, correctly ordered quad that is simply off the picture: valid
@@ -207,6 +212,22 @@ class TestGeometryRecord(unittest.TestCase):
         self.assertIs(geometry.provenance, GeometryProvenance.ASSUMED)
         self.assertFalse(geometry.is_measured)
         self.assertIn("Law 6", geometry.justification)
+
+    def test_a_measured_geometry_does_not_claim_to_be_assumed(self):
+        # The default sentence says the dimensions were assumed from Law 6 and
+        # never checked against this video. Attaching it to dimensions a human
+        # measured would make the record argue with itself.
+        geometry = PitchGeometry(provenance=GeometryProvenance.MANUALLY_SUPPLIED)
+        self.assertTrue(geometry.is_measured)
+        self.assertEqual(geometry.justification, MEASURED_JUSTIFICATION)
+        self.assertNotIn("assumed", geometry.justification)
+
+    def test_an_explicit_justification_survives(self):
+        sentence = "measured with a tape by the groundsman before play"
+        geometry = PitchGeometry(
+            provenance=GeometryProvenance.MANUALLY_SUPPLIED, justification=sentence
+        )
+        self.assertEqual(geometry.justification, sentence)
 
     def test_the_vertical_target_quad(self):
         self.assertEqual(

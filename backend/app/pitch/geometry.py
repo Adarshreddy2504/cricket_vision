@@ -73,6 +73,12 @@ DEFAULT_JUSTIFICATION = (
     "strip; this has not been verified against this video."
 )
 
+MEASURED_JUSTIFICATION = (
+    "Pitch dimensions supplied by a human for this pitch, and treated as a "
+    "measurement of it rather than as a general reading of Law 6. The "
+    "measurement itself is not recorded here."
+)
+
 
 @dataclass(frozen=True)
 class PitchGeometry:
@@ -83,14 +89,29 @@ class PitchGeometry:
     `width_m`    distance across the pitch, between the bowling creases.
     `long_axis`  which way the long axis runs in the image.
     `provenance` whether these numbers were measured or assumed.
-    `justification` a sentence a human can read and disagree with.
+    `justification` a sentence a human can read and disagree with. When it is
+                    not supplied, it follows the provenance, so a measured
+                    geometry never carries the "these are assumed" sentence.
     """
 
     length_m: float = PITCH_LENGTH_M
     width_m: float = CREASE_WIDTH_M
     long_axis: LongAxis = LongAxis.VERTICAL
     provenance: GeometryProvenance = GeometryProvenance.ASSUMED
-    justification: str = DEFAULT_JUSTIFICATION
+    justification: str | None = None
+
+    def __post_init__(self) -> None:
+        # A frozen dataclass, so the field is filled through `object` rather
+        # than assigned. The default sentence must match the standing of the
+        # numbers: attaching "assumed, not verified" to dimensions a human
+        # measured would make the record argue with itself.
+        if self.justification is None:
+            measured = self.provenance is GeometryProvenance.MANUALLY_SUPPLIED
+            object.__setattr__(
+                self,
+                "justification",
+                MEASURED_JUSTIFICATION if measured else DEFAULT_JUSTIFICATION,
+            )
 
     @property
     def is_measured(self) -> bool:
@@ -160,6 +181,7 @@ class PitchGeometry:
 
 __all__ = [
     "DEFAULT_JUSTIFICATION",
+    "MEASURED_JUSTIFICATION",
     "GeometryProvenance",
     "LongAxis",
     "MetricPoint",
