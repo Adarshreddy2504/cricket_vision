@@ -30,6 +30,15 @@ htmlcov/
 # Type-checker / linter caches
 *.tsbuildinfo
 
+# ── Frontend dependencies and build output ─────────────────────────────────
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/.vite/
+frontend/.env
+frontend/.env.local
+
 # ── Secrets and local overrides ───────────────────────────────────────────────
 # Credentials (e.g. model access keys) live here and are never committed.
 .env
