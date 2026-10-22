@@ -35,3 +35,5 @@ python-dotenv>=1.0,<2
 # ── Development and verification ──────────────────────────────────────────────
 # upstream pin: pytest==9.1.1
 pytest>=8,<10
+# Linter. The rules and the line length are pinned in ruff.toml.
+ruff>=0.6
