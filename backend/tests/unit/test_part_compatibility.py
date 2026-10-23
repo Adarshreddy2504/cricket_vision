@@ -103,6 +103,8 @@ class TestStructuralContract(unittest.TestCase):
             capture_output=True,
             text=True,
             check=False,
+            # Do not inherit a closed/invalid stdin handle from the test runner.
+            stdin=subprocess.DEVNULL,
         )
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(completed.stdout.strip(), "False", completed.stderr)
