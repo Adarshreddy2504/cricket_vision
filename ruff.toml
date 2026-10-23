@@ -1,0 +1,27 @@
+# Lint configuration for the CricketVision backend.
+#
+# Run with:
+#
+#     ruff check backend
+#
+# `backend/` is the import root for both `app.*` and `tests.*`, so both are
+# first-party here. Saying so explicitly keeps the import blocks grouped the
+# way they read best: standard library, third party, then our own code.
+#
+# `target-version` matches the oldest Python the project supports (see the
+# README).
+
+line-length = 100
+target-version = "py310"
+src = ["backend"]
+
+[lint]
+# E/W: pycodestyle — naming, spacing, line length.
+# F:   pyflakes — undefined names, unused imports and variables.
+# I:   isort — import order.
+# UP:  pyupgrade — modernise syntax for the supported Python versions.
+# B:   flake8-bugbear — checks that catch real bugs.
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[lint.isort]
+known-first-party = ["app", "tests"]
