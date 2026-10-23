@@ -207,6 +207,8 @@ def _flags(delivery: DeliveryAnalysis) -> list[str]:
         flags.append("clip_window_truncated")
     if delivery.track.predicted_count > 0:
         flags.append("trajectory_contains_predicted_points")
+    if delivery.track.low_confidence_count > 0:
+        flags.append("trajectory_contains_low_confidence_detections")
     continuity = Trajectory(points=list(delivery.track.points)).continuity
     if continuity != "continuous":
         flags.append("trajectory_gapped")
@@ -356,6 +358,11 @@ def _diagnostic_delivery(bundle: AnalysisBundle, delivery: DeliveryAnalysis) -> 
         "shot": shot_dict,
         "analytics": analytics,
         "analytics_error": delivery.analytics_error,
+        "tracking": {
+            "detected_points": int(delivery.track.detected_count),
+            "predicted_points": int(delivery.track.predicted_count),
+            "low_confidence_points": int(delivery.track.low_confidence_count),
+        },
         "flags": _flags(delivery),
     }
 
@@ -392,10 +399,36 @@ def build_documents(bundle: AnalysisBundle) -> tuple[dict, dict]:
             "frames_decoded": bundle.frames_decoded,
             "detection_frames": bundle.detection_frames,
             "predicted_frames": bundle.predicted_frames,
+            "timebase": {
+                "authority": "1-based frame index",
+                "frame_rate_source": "container metadata (OpenCV CAP_PROP_FPS)",
+                "constant_frame_rate_assumed": True,
+                "per_frame_timestamps_preserved": False,
+                "variable_frame_rate_supported": False,
+                "seconds_semantics": (
+                    "seconds are derived from frame counts and the container "
+                    "fps; no per-frame presentation timestamp is read"
+                ),
+                "missing_fps_semantics": (
+                    "if the container reports no usable fps, clip duration is "
+                    "null and clip encoding fails with invalid_video_fps"
+                ),
+            },
         },
         "confirmed_tracks": len(
             [track for track in bundle.tracking.tracks if track.is_confirmed]
         ),
+        "tracking": {
+            "low_confidence_points": sum(
+                int(track.low_confidence_count)
+                for track in bundle.tracking.tracks
+            ),
+            "association_rule": (
+                "detections below the track-start confidence threshold may "
+                "only extend a live track and must pass the Kalman gate; they "
+                "never start a new track"
+            ),
+        },
         "candidate_windows": [window.as_dict() for window in bundle.windows],
         "candidate_boundary_validated": False,
         "boundary_definition": (

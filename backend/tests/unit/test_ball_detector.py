@@ -146,6 +146,30 @@ class TestDetectorCoordinateSpace(unittest.TestCase):
         detector.detect_with_confidence(make_frame())
         self.assertEqual(model.calls[0]["conf"], 0.55)
 
+    def test_the_association_floor_is_passed_to_the_model(self):
+        model = StubYoloModel([[[10, 20, 30, 40, 0.20, 0]]])
+        detector = BallDetector(
+            model=model,
+            conf_threshold=0.55,
+            association_conf_threshold=0.10,
+        )
+        cx, cy, confidence = detector.detect_for_association(make_frame())
+        self.assertEqual(model.calls[0]["conf"], 0.10)
+        self.assertEqual((cx, cy), (40, 60))
+        self.assertAlmostEqual(confidence, 0.20)
+
+    def test_a_normal_detection_refuses_a_box_below_the_start_threshold(self):
+        model = StubYoloModel([[[10, 20, 30, 40, 0.20, 0]]])
+        detector = BallDetector(
+            model=model,
+            conf_threshold=0.55,
+            association_conf_threshold=0.10,
+        )
+        self.assertEqual(
+            detector.detect_with_confidence(make_frame()),
+            (None, None, None),
+        )
+
 
 class TestDetectorPublicApi(unittest.TestCase):
     """The convenience wrapper and the failure modes."""

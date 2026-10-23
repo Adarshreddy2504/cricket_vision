@@ -41,6 +41,10 @@ class TrajectoryPoint:
                  stable while the ball is being followed — including across a
                  short occlusion — and changes when the ball is genuinely lost
                  and re-acquired.
+    low_confidence : True when a real measurement was below the track-start
+                 threshold and was accepted only because a live track already
+                 existed and the Kalman gate agreed. The source stays
+                 "detected"; this flag records the weaker provenance.
     """
 
     frame: int
@@ -49,6 +53,7 @@ class TrajectoryPoint:
     source: TrajectorySource
     confidence: float | None = None
     track_id: int | None = None
+    low_confidence: bool = False
 
     def as_dict(self) -> dict:
         return asdict(self)

@@ -2,8 +2,8 @@
 Shared test helpers: synthetic frames and stub models.
 
 The stubs exist so the tracking module can be tested deterministically and
-without the YOLO weights, which are deliberately NOT tracked in git (see
-docs/TRACKING.md). They are not a shortcut around the real detector: the stub
+without loading the tracked YOLO weights (see docs/TRACKING.md). They are not a
+shortcut around the real detector: the stub
 model implements the exact `ultralytics.YOLO` contract the detector uses
 (`predict(source=..., conf=..., verbose=..., device=...)` returning results
 whose `boxes.data` is an `n x 6` array of `x1, y1, x2, y2, score, cls`), so the

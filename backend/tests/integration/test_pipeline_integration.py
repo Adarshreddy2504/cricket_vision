@@ -137,6 +137,11 @@ def test_confirmed_track_becomes_a_qualified_candidate_with_real_modules(
     diagnostics = read_diagnostics(settings, analysis_id)
     assert diagnostics["confirmed_tracks"] == 1
     assert diagnostics["candidate_boundary_validated"] is False
+    timebase = diagnostics["video"]["timebase"]
+    assert timebase["authority"] == "1-based frame index"
+    assert timebase["constant_frame_rate_assumed"] is True
+    assert timebase["per_frame_timestamps_preserved"] is False
+    assert timebase["variable_frame_rate_supported"] is False
     assert diagnostics["deliveries"][0]["analytics"]["trajectory"]["units"] == "pixel"
     assert (
         diagnostics["deliveries"][0]["analytics"]["trajectory"]["mean_speed_px_s"]

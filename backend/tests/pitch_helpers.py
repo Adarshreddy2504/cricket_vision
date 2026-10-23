@@ -2,8 +2,8 @@
 pitch_helpers.py — synthetic frames, hand-checkable quads and stub models.
 
 The stubs exist so the pitch module can be tested deterministically and
-without the YOLO weights, which are deliberately NOT tracked in git (see
-docs/PITCH.md). They are not a shortcut around the real detector: the stub
+without loading the tracked YOLO weights (see docs/PITCH.md). They are not a
+shortcut around the real detector: the stub
 model implements the `ultralytics.YOLO` contract the detector calls —
 
     model.predict(source=..., conf=..., imgsz=..., device=..., verbose=...)
