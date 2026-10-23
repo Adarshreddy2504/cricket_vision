@@ -1,10 +1,10 @@
 """
 config.py — Where the shot checkpoint lives, and how the loader is configured.
 
-THE WEIGHTS ARE EXTERNAL
-------------------------
-`shot_classifier.ckpt` is not tracked in git (see `.gitignore` and
-`docs/SHOTS.md`). Three environment variables describe it:
+WEIGHT LOCATION
+---------------
+The supplied `shot_classifier.ckpt` is tracked at `backend/models/` (see
+`docs/SHOTS.md`). Three environment variables describe a different copy:
 
     CRICKET_MODELS_DIR       the directory holding the weights
     CRICKET_SHOT_MODEL       an explicit checkpoint path (wins over the directory)

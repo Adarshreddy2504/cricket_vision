@@ -1,39 +1,50 @@
-# Runtime dependencies for the CricketVision ball-tracking backend.
+# Runtime and verification dependencies for the CricketVision backend.
 #
-# These are the modules the tracking code actually imports. Install with:
+# Install:
 #
+#     python -m pip install -r requirements.txt
+#
+# PyTorch is the only GPU-sensitive dependency. For a CPU-only installation,
+# install the CPU wheels first (they satisfy the pinned versions below):
+#
+#     pip install --index-url https://download.pytorch.org/whl/cpu \
+#         torch==2.13.0 torchvision==0.28.0
 #     pip install -r requirements.txt
 #
-# The upstream project pins exact versions; this manifest uses compatible
-# ranges so the module also installs against a newer environment. The exact
-# versions the upstream project was verified against are listed next to each
-# entry.
+# For an NVIDIA GPU, use the CUDA 12.6 wheel index instead:
 #
-# torch/torchvision: for CPU-only installs, use the PyTorch CPU index first and
-# drop the minimum pins:
-#     pip install "torch>=2.5" "torchvision>=0.20" --index-url https://download.pytorch.org/whl/cpu
+#     pip install --index-url https://download.pytorch.org/whl/cu126 \
+#         torch==2.13.0 torchvision==0.28.0
+#     pip install -r requirements.txt
+#
+# The Docker build selects the same wheel index with TORCH_INDEX_URL. See
+# README.md and compose.gpu.yaml. Nothing downloads model weights automatically.
 
-# ── Vision and maths ──────────────────────────────────────────────────────────
-# upstream pins: numpy==2.1.3, opencv-python==4.10.0.84
-numpy>=2.1,<3
-opencv-python>=4.10,<6
+# ── Vision and maths ─────────────────────────────────────────────────────────
+numpy==2.5.2
+opencv-python==5.0.0.93
 
-# ── Detection ─────────────────────────────────────────────────────────────────
-# ultralytics provides YOLO11 (`ultralytics.YOLO`), the ball detector's model
-# runtime. torch is its inference backend and is imported lazily, so the module
-# can be imported (and its pure-maths parts tested) without a GPU.
-# upstream pins: ultralytics==8.4.162, torch==2.5.1, torchvision==0.20.1
-ultralytics>=8.4,<9
-torch>=2.5
-torchvision>=0.20
+# ── Detection ────────────────────────────────────────────────────────────────
+# ultralytics provides YOLO11 (`ultralytics.YOLO`), the ball and pitch detector
+# runtime. torch is its inference backend. Install torch/torchvision from the
+# CPU or CUDA index above so the correct build is selected.
+ultralytics==8.4.135
+torch==2.13.0
+torchvision==0.28.0
 
-# ── Configuration ─────────────────────────────────────────────────────────────
-# Reads an optional `.env` from the project root so a model path can be
-# overridden without editing code. The import is optional at runtime.
-python-dotenv>=1.0,<2
+# ── HTTP API ─────────────────────────────────────────────────────────────────
+# FastAPI serves the schema 2.1 contract. python-multipart is required for the
+# upload routes; httpx backs the FastAPI test client.
+fastapi==0.141.1
+uvicorn[standard]==0.52.0
+python-multipart==0.0.32
+httpx==0.28.1
 
-# ── Development and verification ──────────────────────────────────────────────
-# upstream pin: pytest==9.1.1
-pytest>=8,<10
-# Linter. The rules and the line length are pinned in ruff.toml.
-ruff>=0.6
+# ── Configuration ────────────────────────────────────────────────────────────
+# Reads an optional `.env` from the project root so model paths and limits can
+# be overridden without editing code.
+python-dotenv==1.2.3
+
+# ── Development and verification ─────────────────────────────────────────────
+pytest==9.1.1
+ruff==0.17.1

@@ -38,8 +38,8 @@ here fills a gap, guesses a class, or reports a speed it cannot justify.
 
 ## The checkpoint
 
-The model weights are **not tracked in git**. The checkpoint used for
-development is:
+The supplied model weights are tracked in git under `backend/models/`. The
+checkpoint used for development is:
 
 | | |
 |---|---|

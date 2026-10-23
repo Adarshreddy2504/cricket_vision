@@ -36,6 +36,28 @@ from app.tracking.tracking_service import (
 from tests.helpers import SequenceDetector, StubDetector, make_frame, make_video
 
 
+class ConfidenceSequenceDetector:
+    """Scripted detections with a per-frame confidence, including low boxes."""
+
+    def __init__(self, rows):
+        self.rows = list(rows)
+        self.calls = 0
+        self.available = True
+        self.load_error = None
+
+    def detect_for_association(self, _frame):
+        self.calls += 1
+        index = min(self.calls, len(self.rows)) - 1
+        row = self.rows[index]
+        if row is None:
+            return None, None, None
+        return row[0], row[1], row[2]
+
+    def detect(self, _frame):
+        x, y, _confidence = self.detect_for_association(_frame)
+        return None if x is None else (x, y)
+
+
 class TestPerFrameTracking(unittest.TestCase):
     """One frame in, one answer out."""
 
@@ -114,6 +136,59 @@ class TestProvenance(unittest.TestCase):
         self.assertEqual(points[0].source, "detected")
         self.assertEqual(sum(1 for p in points if p.source == "predicted"), MAX_MISSED)
         self.assertEqual(max(p.frame for p in points), 1 + MAX_MISSED)
+
+
+class TestLowConfidenceAssociation(unittest.TestCase):
+    """A low-confidence box may extend a flight, never create one."""
+
+    def test_a_low_confidence_box_cannot_start_a_track(self):
+        detector = ConfidenceSequenceDetector([(100, 100, 0.20)])
+        service = TrackingService(detector=detector)
+        outcome = service.process_frame(make_frame(320, 180))
+        self.assertIsNone(outcome.position)
+        self.assertIsNone(outcome.source)
+        self.assertIsNone(outcome.detection)
+        self.assertEqual(service.result.tracks, [])
+
+    def test_a_low_confidence_box_extends_a_live_track(self):
+        detector = ConfidenceSequenceDetector(
+            [(100, 100, 0.90), (105, 101, 0.20)]
+        )
+        service = TrackingService(detector=detector)
+        first = service.process_frame(make_frame(320, 180))
+        second = service.process_frame(make_frame(320, 180))
+
+        self.assertEqual(second.track_id, first.track_id)
+        self.assertEqual(second.source, "detected")
+        self.assertTrue(second.low_confidence)
+        self.assertAlmostEqual(second.confidence, 0.20)
+        self.assertEqual(service.result.tracks[0].low_confidence_count, 1)
+
+    def test_a_low_confidence_box_outside_the_gate_is_refused(self):
+        detector = ConfidenceSequenceDetector(
+            [(100, 100, 0.90), (900, 600, 0.20)]
+        )
+        service = TrackingService(detector=detector)
+        service.process_frame(make_frame(320, 180))
+        outcome = service.process_frame(make_frame(320, 180))
+
+        self.assertTrue(outcome.gated_out)
+        self.assertEqual(outcome.source, "predicted")
+        self.assertFalse(outcome.low_confidence)
+        self.assertIsNone(outcome.confidence)
+
+    def test_a_low_confidence_box_cannot_re_acquire_after_loss(self):
+        detector = ConfidenceSequenceDetector(
+            [(100, 100, 0.90)]
+            + [None] * (MAX_MISSED + 1)
+            + [(110, 100, 0.20)]
+        )
+        service = TrackingService(detector=detector)
+        for _ in range(MAX_MISSED + 2):
+            service.process_frame(make_frame(320, 180))
+        lost = service.process_frame(make_frame(320, 180))
+        self.assertIsNone(lost.position)
+        self.assertIsNone(lost.track_id)
 
 
 class TestTrackIdentity(unittest.TestCase):

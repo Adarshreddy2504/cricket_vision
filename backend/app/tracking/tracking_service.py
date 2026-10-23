@@ -74,6 +74,7 @@ class FrameTracking:
     track_id: int | None = None
     detection: tuple | None = None
     gated_out: bool = False
+    low_confidence: bool = False
 
     def as_dict(self) -> dict:
         return {
@@ -84,6 +85,7 @@ class FrameTracking:
             "track_id": self.track_id,
             "detection": list(self.detection) if self.detection is not None else None,
             "gated_out": self.gated_out,
+            "low_confidence": self.low_confidence,
         }
 
 
@@ -118,6 +120,11 @@ class Track:
         return sum(1 for p in self.points if p.source == "predicted")
 
     @property
+    def low_confidence_count(self) -> int:
+        """Detected points accepted only through the association tier."""
+        return sum(1 for p in self.points if p.low_confidence)
+
+    @property
     def is_confirmed(self) -> bool:
         """True when this track is backed by enough real detections to be a flight."""
         return self.detected_count >= self.min_detections
@@ -134,6 +141,7 @@ class Track:
             "point_count": len(self.points),
             "detected_count": self.detected_count,
             "predicted_count": self.predicted_count,
+            "low_confidence_count": self.low_confidence_count,
             "is_confirmed": self.is_confirmed,
             "points": [p.as_dict() for p in self.points],
         }
@@ -182,7 +190,7 @@ class TrackingService:
     Tracks the ball through a stream of frames.
 
     The detector may be injected, which is how the tests drive the service
-    without the YOLO weights (which are deliberately not tracked in git).
+    deterministically without loading the YOLO weights.
     Injected detectors must provide `detect_with_confidence(frame)` returning
     `(x, y, confidence)` — or `detect(frame)` returning `(x, y)` — and expose
     an `available` attribute.
@@ -222,6 +230,7 @@ class TrackingService:
         return BallDetector(
             model_path=self.config.model_path,
             conf_threshold=self.config.conf_threshold,
+            association_conf_threshold=self.config.association_conf_threshold,
             resize_width=self.config.resize_width,
             resize_height=self.config.resize_height,
             min_diag_px=self.config.min_diag_px,
@@ -275,12 +284,29 @@ class TrackingService:
             self._frame_counter = max(self._frame_counter, frame_no)
 
         cx, cy, confidence = self._detect(frame)
+
+        # Two-tier confidence. A detection below the start threshold is only
+        # allowed to extend a track that already exists and is still alive;
+        # it can never create a new track. That preserves real measurements
+        # through a brief low-confidence patch without turning noise into a
+        # delivery.
+        low_confidence = (
+            confidence is not None
+            and confidence < self.config.conf_threshold
+        )
+        if low_confidence and (
+            self._current_track_id is None or self._tracker.is_lost
+        ):
+            cx, cy, confidence = None, None, None
+            low_confidence = False
+
         detection = None if cx is None else (int(cx), int(cy))
 
         result = self._tracker.update(detection, frame_no)
 
         track_id: int | None = None
         point_confidence: float | None = None
+        point_low_confidence = False
 
         if result.source == "detected":
             # A new flight begins whenever the tracker had no live track to
@@ -296,6 +322,7 @@ class TrackingService:
                 self._track_order.append(self._current_track_id)
             track_id = self._current_track_id
             point_confidence = confidence
+            point_low_confidence = low_confidence
         elif result.source == "predicted":
             # Coasting: the flight continues, so the identifier does too.
             track_id = self._current_track_id
@@ -312,6 +339,7 @@ class TrackingService:
                 source=result.source,
                 confidence=point_confidence,
                 track_id=track_id,
+                low_confidence=point_low_confidence,
             )
             self._points.append(point)
             if track_id is not None:
@@ -331,10 +359,19 @@ class TrackingService:
             track_id=track_id,
             detection=detection,
             gated_out=result.gated_out,
+            low_confidence=point_low_confidence,
         )
 
     def _detect(self, frame) -> tuple:
-        """Ask the detector for (x, y, confidence); None where there is nothing."""
+        """Ask the detector for (x, y, confidence); None where there is nothing.
+
+        The association method is preferred because it can see boxes down to
+        the lower confidence floor. The service decides whether such a box may
+        be used, so a detector without the method still works unchanged.
+        """
+        if hasattr(self.detector, "detect_for_association"):
+            cx, cy, confidence = self.detector.detect_for_association(frame)
+            return cx, cy, confidence
         if hasattr(self.detector, "detect_with_confidence"):
             cx, cy, confidence = self.detector.detect_with_confidence(frame)
             return cx, cy, confidence

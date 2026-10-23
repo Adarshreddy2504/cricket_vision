@@ -29,6 +29,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ApiError,
+  cancelAnalysis,
   fetchResult,
   fetchStatus,
   type AnalysisStatus,
@@ -81,6 +82,8 @@ const Processing = () => {
   const [loadingResult, setLoadingResult] = useState(false);
   const [resultError, setResultError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
 
   const terminal = status?.status === "completed" || status?.status === "failed";
@@ -189,6 +192,26 @@ const Processing = () => {
       controller.abort();
     };
   }, [analysisId, navigate, retryNonce, status]);
+
+  const cancelJob = async () => {
+    if (!analysisId || cancelling) return;
+    setCancelling(true);
+    setCancelError(null);
+    try {
+      const next = await cancelAnalysis(analysisId, { timeoutMs: 15_000 });
+      setStatus(next);
+      setPaused(false);
+      setRetryNonce((value) => value + 1);
+    } catch (caught) {
+      setCancelError(
+        caught instanceof Error
+          ? caught.message
+          : "The cancellation request could not be sent.",
+      );
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   const states = useMemo(
     () => stageStates(status?.stage, status?.status),
@@ -529,20 +552,38 @@ const Processing = () => {
                   >
                     {paused ? (
                       <>
-                        <Play /> Resume tracking
+                        <Play /> Resume polling
                       </>
                     ) : (
                       <>
-                        <Pause /> Stop tracking
+                        <Pause /> Pause polling
                       </>
                     )}
                   </Button>
+                )}
+                {!terminal && (
+                  <Button
+                    variant="destructive"
+                    className="w-full"
+                    onClick={() => void cancelJob()}
+                    disabled={cancelling}
+                  >
+                    {cancelling ? <Loader2 className="animate-spin" /> : <X />}
+                    {cancelling ? "Cancelling…" : "Cancel backend analysis"}
+                  </Button>
+                )}
+                {cancelError && (
+                  <p className="text-[11px] leading-snug text-destructive" role="alert">
+                    {cancelError}
+                  </p>
                 )}
                 <Button asChild variant="ghost" className="w-full">
                   <Link to="/upload">Analyse another video</Link>
                 </Button>
                 <p className="text-[11px] leading-snug text-muted-foreground">
-                  Stopping only stops this page from polling. It does not cancel the backend job.
+                  Pausing only stops this page from polling. Cancelling asks the
+                  backend to stop; the current model call must finish before the
+                  job reaches its terminal state.
                 </p>
               </CardContent>
             </Card>

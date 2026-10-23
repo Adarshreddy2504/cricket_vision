@@ -1,0 +1,40 @@
+# Optional NVIDIA GPU override.
+#
+# Prerequisites on the host:
+#   - an NVIDIA GPU and a driver that supports CUDA 12.6
+#   - NVIDIA Container Toolkit configured for the container runtime
+#   - a working `docker run --rm --gpus all <cuda-image> nvidia-smi`
+#
+# Then:
+#   docker compose -f compose.yaml -f compose.gpu.yaml up --build
+#
+# The CUDA wheel index is much larger than the CPU image. Device selection
+# remains `auto`, so the application code uses CPU if CUDA is not visible
+# inside the container. The device reservation below still requires the NVIDIA
+# runtime; if it fails, the container will not start.
+#
+# Verified status in this repository: the prerequisite check failed with
+# "failed to discover GPU vendor from CDI: no known GPU vendor found", so this
+# override has NOT been exercised here. Only the native CUDA path was verified.
+
+services:
+  backend:
+    image: cricketvision-backend:gpu
+    build:
+      args:
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cu126
+        TORCH_VERSION: "2.13.0"
+        TORCHVISION_VERSION: "0.28.0"
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      CRICKET_BALL_DEVICE: ${CRICKET_BALL_DEVICE:-auto}
+      CRICKET_PITCH_DEVICE: ${CRICKET_PITCH_DEVICE:-auto}
+      CRICKET_SHOT_DEVICE: ${CRICKET_SHOT_DEVICE:-auto}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

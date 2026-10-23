@@ -25,8 +25,17 @@ same way and so a future part can compare against it.
 """
 
 # ── Ball detection ───────────────────────────────────────────────────────────
-# Minimum confidence a YOLO box must reach before it is considered at all.
+# Minimum confidence a YOLO box must reach before it may START a track.
 DETECTOR_CONF_THRESHOLD = 0.30
+
+# Minimum confidence for a detection that may only EXTEND an established
+# track. A ball passing behind a bat often drops below the start threshold for
+# a frame or two; refusing those detections breaks the flight, while accepting
+# them as new tracks would turn noise into deliveries. The service therefore
+# accepts this tier only when a live track already exists and the Kalman gate
+# agrees. The value is an inference floor, not a claim that the detection is
+# trustworthy on its own.
+DETECTOR_ASSOCIATION_CONF_THRESHOLD = 0.10
 
 # The frame is downscaled to this size for inference (speed) and the answer is
 # scaled back to the source resolution. The aspect ratio is preserved, so

@@ -29,7 +29,7 @@ Every point in a trajectory says where it came from.
 
 | `source` | Meaning | `confidence` |
 |---|---|---|
-| `"detected"` | A real detector measurement on that frame. | The detector's confidence. |
+| `"detected"` | A real detector measurement on that frame. `low_confidence` says whether it was accepted through the lower association tier. | The detector's confidence. |
 | `"predicted"` | A Kalman extrapolation — either no detection that frame, or a detection refused by the association gate. | `null`. There was no measurement, so there is no confidence. |
 | `null` | The ball is lost. There is no position, and no point at all. | `null`. |
 
@@ -40,6 +40,17 @@ trajectory is information about the footage, not something to paper over.
 A consequence worth stating plainly: **only `"detected"` points may be used
 to fit a physics curve.** Fitting release speed to a mix of measurements and
 extrapolations produces a confident, wrong number.
+
+### Two confidence tiers
+
+`CRICKET_BALL_CONF` (default `0.30`) is the threshold to **start** a track.
+`CRICKET_BALL_ASSOC_CONF` (default `0.10`) is a lower inference floor that may
+only **extend an already-live track**, and the detection must still pass the
+Kalman association gate. A low-confidence box is never allowed to create a new
+track: that would turn noise into a delivery. Accepted low-confidence
+measurements keep `source: "detected"`, their real `confidence`, and
+`low_confidence: true`. `Track.low_confidence_count` and the diagnostics
+`tracking.low_confidence_points` record how many were used.
 
 ### The association gate
 
@@ -105,8 +116,10 @@ project was verified against are recorded as comments next to each entry.
 
 ## Model weights
 
-**The checkpoint is not tracked in git.** `*.pt` and friends are ignored by
-`.gitignore`, and the weights are not redistributed here.
+The supplied checkpoint is tracked in git at
+`backend/models/ball_detector.pt`. `*.pt` and similar patterns are otherwise
+ignored, so a different local checkpoint is not committed by accident. The
+loader never downloads weights.
 
 | File | Size | Purpose | MD5 |
 |---|---|---|---|
@@ -166,7 +179,8 @@ once, at import.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `CRICKET_BALL_CONF` | `0.30` | Minimum confidence for a box to count. |
+| `CRICKET_BALL_CONF` | `0.30` | Minimum confidence to start a track. |
+| `CRICKET_BALL_ASSOC_CONF` | `0.10` | Lower floor that may only extend a live track through the gate. |
 | `CRICKET_BALL_RESIZE_W` | `640` | Inference width. |
 | `CRICKET_BALL_RESIZE_H` | `360` | Inference height. |
 | `CRICKET_BALL_MIN_DIAG` | `4` | Smallest plausible ball-box diagonal, in resized pixels. |
@@ -261,6 +275,8 @@ from app.tracking import BallDetector, BallTracker
 
 detector = BallDetector()
 cx, cy, conf = detector.detect_with_confidence(frame)   # source pixels
+# Lower tier, for extending an existing track only:
+cx_low, cy_low, conf_low = detector.detect_for_association(frame)
 
 tracker = BallTracker()
 result = tracker.update((cx, cy), frame_no)
@@ -301,7 +317,8 @@ result.position, result.source, result.gated_out
       "y": 388,
       "source": "detected",
       "confidence": 0.87,
-      "track_id": 1
+      "track_id": 1,
+      "low_confidence": false
     }
   ],
   "tracks": [
@@ -312,6 +329,7 @@ result.position, result.source, result.gated_out
       "point_count": 59,
       "detected_count": 51,
       "predicted_count": 8,
+      "low_confidence_count": 2,
       "is_confirmed": true,
       "points": [ ... ]
     }
@@ -405,8 +423,9 @@ Known and deliberate, rather than accidental:
   not values fitted to any particular clip. The detection and tracking
   behaviour on real broadcast footage has not been measured in this
   repository.
-- **The model weights are external.** Nothing here can find a ball without
-  them, and the module will refuse to run rather than pretend.
+- **The model weights are required.** The supplied copy lives in
+  `backend/models/`. Without it, the module refuses to run rather than
+  pretend.
 - **One ball at a time.** The tracker follows a single ball. Two balls in
   frame (a throw and a fielder's hand, say) will contend for the same
   filter; the association gate is what keeps the wrong one out.

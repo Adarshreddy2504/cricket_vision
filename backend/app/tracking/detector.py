@@ -4,8 +4,8 @@ detector.py — YOLO-based cricket ball detector.
 THE ONLY BALL DETECTOR IN THIS MODULE.
 
 Responsibilities:
-  - Load the YOLO11 model once, from a path that is never bundled with the
-    source (see `app/core/config.py`).
+  - Load the YOLO11 model once from the configured path; the supplied copy is
+    in `backend/models/` (see `app/core/config.py`).
   - Run inference on a resized frame, for speed.
   - Return the best ball bounding-box centre, in full-resolution pixels.
   - Reject obviously-wrong detections: the wrong class, or a bounding box
@@ -21,12 +21,12 @@ back by exactly the factor it was downscaled by, so a caller never has to
 think about it. A detector that returned resized coordinates would produce a
 ball that appears to move at half its real speed.
 
-THE MODEL IS EXTERNAL
----------------------
-The checkpoint is not tracked in git. The loader never downloads anything:
-if the weights are not on disk the detector reports that it is unavailable,
-and the tracking service refuses to run. A missing file must never turn into
-a network fetch.
+THE MODEL FILE
+--------------
+The supplied checkpoint is tracked in git. The loader never downloads
+anything: if the weights are not on disk the detector reports that it is
+unavailable, and the tracking service refuses to run. A missing file must
+never turn into a network fetch.
 """
 
 from __future__ import annotations
@@ -40,6 +40,7 @@ import numpy as np
 
 from ..core.config import BALL_MODEL_PATH
 from ..core.constants import (
+    DETECTOR_ASSOCIATION_CONF_THRESHOLD,
     DETECTOR_CONF_THRESHOLD,
     DETECTOR_MAX_DIAG_PX,
     DETECTOR_MIN_DIAG_PX,
@@ -72,6 +73,7 @@ class BallDetector:
         *,
         model: Any = None,
         conf_threshold: float = DETECTOR_CONF_THRESHOLD,
+        association_conf_threshold: float = DETECTOR_ASSOCIATION_CONF_THRESHOLD,
         resize_width: int = DETECTOR_RESIZE_W,
         resize_height: int = DETECTOR_RESIZE_H,
         min_diag_px: int = DETECTOR_MIN_DIAG_PX,
@@ -79,6 +81,12 @@ class BallDetector:
         device: str | None = None,
     ) -> None:
         self.conf_threshold = float(conf_threshold)
+        # The association floor can only be LOWER than the start threshold:
+        # it may extend a live track, never create one.
+        self.association_conf_threshold = max(
+            0.0,
+            min(float(association_conf_threshold), self.conf_threshold),
+        )
         self.resize_width = int(resize_width)
         self.resize_height = int(resize_height)
         self.min_diag_px = int(min_diag_px)
@@ -166,8 +174,38 @@ class BallDetector:
         back by (w_full / resize_width, h_full / resize_height).
 
         Returns (None, None, None) when the detector has no model or the
-        model found nothing plausible.
+        model found nothing plausible. Only boxes at or above the start
+        threshold are returned; use :meth:`detect_for_association` for the
+        lower association tier.
         """
+        return self._detect(
+            frame,
+            inference_conf=self.conf_threshold,
+            minimum_conf=self.conf_threshold,
+        )
+
+    def detect_for_association(
+        self, frame: np.ndarray
+    ) -> tuple[int | None, int | None, float | None]:
+        """Return a detection down to the association floor.
+
+        The caller must only use a result whose confidence is below
+        ``conf_threshold`` to extend an existing track. It is never safe to
+        start a new track from this tier.
+        """
+        return self._detect(
+            frame,
+            inference_conf=self.association_conf_threshold,
+            minimum_conf=self.association_conf_threshold,
+        )
+
+    def _detect(
+        self,
+        frame: np.ndarray,
+        *,
+        inference_conf: float,
+        minimum_conf: float,
+    ) -> tuple[int | None, int | None, float | None]:
         frame = validate_frame(frame)
 
         if self._model is None:
@@ -176,7 +214,7 @@ class BallDetector:
         h_full, w_full = frame.shape[:2]
         small = cv2.resize(frame, (self.resize_width, self.resize_height))
         result = self._model.predict(
-            source=small, conf=self.conf_threshold, verbose=False, device=self._device
+            source=small, conf=inference_conf, verbose=False, device=self._device
         )[0]
 
         if result is None or getattr(result, "boxes", None) is None:
@@ -191,6 +229,8 @@ class BallDetector:
         for box in result.boxes.data.tolist():
             x1, y1, x2, y2, score, cls = box
             if int(cls) != BALL_CLASS_ID:
+                continue
+            if score < minimum_conf:
                 continue
 
             # Size sanity check, on the resized coordinates.

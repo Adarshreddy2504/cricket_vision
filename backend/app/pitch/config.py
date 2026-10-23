@@ -1,10 +1,10 @@
 """
 config.py — Where the pitch detector's weights live, and how they are tuned.
 
-THE WEIGHTS ARE EXTERNAL
-------------------------
-The pitch checkpoints are NOT tracked in git (see `.gitignore` and
-`docs/PITCH.md`). Three environment variables point at them:
+WEIGHT LOCATION
+---------------
+The supplied pitch checkpoints are tracked at `backend/models/` (see
+`docs/PITCH.md`). Three environment variables point at a different copy:
 
     CRICKET_MODELS_DIR       the directory holding the weights
     CRICKET_PITCH_BOX_MODEL  the pitch-BOX detector's weights file
@@ -115,7 +115,10 @@ def _env_path(name: str, default: Path) -> Path:
 def _env_file(name: str, default: Path) -> Path:
     """Same idea as `_env_path`, for an individual model file."""
     raw = os.environ.get(name)
-    return Path(raw).expanduser() if raw else default
+    if not raw:
+        return default
+    path = Path(raw).expanduser()
+    return path if path.is_absolute() else (PROJECT_DIR / path).resolve()
 
 
 MODELS_DIR = _env_path("CRICKET_MODELS_DIR", BACKEND_DIR / "models")
@@ -192,8 +195,8 @@ class PitchConfig:
     of the module. Frozen, so a caller can build a modified copy with
     `dataclasses.replace` without inventing a new configuration object.
 
-    The two `model_path`s are the YOLO checkpoints. They are NOT bundled
-    with the source; see the module docstring.
+    The two `model_path`s are the YOLO checkpoints. The supplied copies live
+    in `backend/models/`; see the module docstring.
     """
 
     box_model_path: Path = Path(PITCH_BOX_MODEL_PATH)

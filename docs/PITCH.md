@@ -165,8 +165,9 @@ pip install -r requirements.txt
 
 ## Model weights
 
-**Neither checkpoint is tracked in git.** `*.pt` and friends are ignored by
-`.gitignore`, and the weights are not redistributed here.
+Both supplied checkpoints are tracked in git under `backend/models/`. Other
+`*.pt` files remain ignored, so a local experiment cannot be committed by
+accident. The loaders never download weights.
 
 | File | Size | Task | MD5 |
 |---|---|---|---|
@@ -702,8 +703,9 @@ These are properties of the method, not bugs to be fixed later:
   when it drifted.
 - **Real-footage evaluation.** No numbers, no comparison to a hand-labelled
   ground truth, no footage in the repository.
-- **Redistribution of the checkpoints.** Their provenance and licence are not
-  recorded here, and the files are not in git.
+- **Provenance of the checkpoints.** The files are included in this repository,
+  but their licence and provenance are not recorded here. Confirm both before
+  redistributing them outside this project.
 
 ---
 

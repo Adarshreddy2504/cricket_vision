@@ -5,10 +5,11 @@ Everything is derived from one root so the module never depends on where it
 was started from, and every tunable can be overridden from the environment
 without editing code.
 
-THE MODEL WEIGHTS ARE EXTERNAL
-------------------------------
-The detector's YOLO checkpoint is NOT tracked in git (see `.gitignore` and
-`docs/TRACKING.md`). Two environment variables point at it:
+MODEL WEIGHT LOCATION
+---------------------
+The supplied detector checkpoint is tracked at
+`backend/models/ball_detector.pt` (see `docs/TRACKING.md`). Two environment
+variables point at a different copy:
 
     CRICKET_MODELS_DIR   the directory holding the weights
     CRICKET_BALL_MODEL   one weights file, overriding the directory
@@ -26,6 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .constants import (
+    DETECTOR_ASSOCIATION_CONF_THRESHOLD,
     DETECTOR_CONF_THRESHOLD,
     DETECTOR_MAX_DIAG_PX,
     DETECTOR_MIN_DIAG_PX,
@@ -106,13 +108,16 @@ def _env_path(name: str, default: Path) -> Path:
 def _env_file(name: str, default: Path) -> Path:
     """Same idea as `_env_path`, for an individual model file."""
     raw = os.environ.get(name)
-    return Path(raw).expanduser() if raw else default
+    if not raw:
+        return default
+    path = Path(raw).expanduser()
+    return path if path.is_absolute() else (PROJECT_DIR / path).resolve()
 
 
 MODELS_DIR = _env_path("CRICKET_MODELS_DIR", BACKEND_DIR / "models")
 
-# The checkpoint's name inside `MODELS_DIR`. The file itself is not tracked in
-# git — see docs/TRACKING.md for how to supply it.
+# The checkpoint's name inside `MODELS_DIR`. The supplied copy is tracked in
+# git; see docs/TRACKING.md.
 BALL_MODEL_FILENAME = "ball_detector.pt"
 
 BALL_MODEL_PATH = _env_file(
@@ -150,13 +155,16 @@ class TrackingConfig:
     the rest of this module. Frozen, so a caller can build a modified copy
     with `dataclasses.replace` without inventing a new configuration object.
 
-    `model_path` is the detector's YOLO checkpoint. It is NOT bundled with the
-    source; see the module docstring.
+    `model_path` is the detector's YOLO checkpoint. The supplied copy lives in
+    `backend/models/`; see the module docstring.
     """
 
     model_path: Path = field(default_factory=lambda: Path(BALL_MODEL_PATH))
     # Detector
     conf_threshold: float = DETECTOR_CONF_THRESHOLD
+    # A lower floor for association-only detections. Never used to start a
+    # track; see `DETECTOR_ASSOCIATION_CONF_THRESHOLD`.
+    association_conf_threshold: float = DETECTOR_ASSOCIATION_CONF_THRESHOLD
     resize_width: int = DETECTOR_RESIZE_W
     resize_height: int = DETECTOR_RESIZE_H
     min_diag_px: int = DETECTOR_MIN_DIAG_PX
@@ -178,6 +186,10 @@ class TrackingConfig:
             model_path=Path(BALL_MODEL_PATH),
             conf_threshold=_env_float(
                 "CRICKET_BALL_CONF", DETECTOR_CONF_THRESHOLD
+            ),
+            association_conf_threshold=_env_float(
+                "CRICKET_BALL_ASSOC_CONF",
+                DETECTOR_ASSOCIATION_CONF_THRESHOLD,
             ),
             resize_width=max(32, _env_int(
                 "CRICKET_BALL_RESIZE_W", DETECTOR_RESIZE_W
@@ -212,6 +224,7 @@ class TrackingConfig:
             "model_path": str(self.model_path),
             "model_found": self.model_path.is_file(),
             "conf_threshold": self.conf_threshold,
+            "association_conf_threshold": self.association_conf_threshold,
             "resize_width": self.resize_width,
             "resize_height": self.resize_height,
             "min_diag_px": self.min_diag_px,
