@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="CricketVision — ball tracking, pitch calibration, shot classification and bowling analytics in one analysis."
+    />
+    <meta name="theme-color" content="#070d18" />
+    <title>CricketVision — cricket video analysis</title>
+    <script>
+      // Apply the stored theme before first paint so the page does not flash.
+      (function () {
+        try {
+          var stored = localStorage.getItem("cricketvision:theme");
+          document.documentElement.classList.toggle("dark", stored !== "light");
+          document.documentElement.classList.toggle("light", stored === "light");
+        } catch (error) {
+          document.documentElement.classList.add("dark");
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
