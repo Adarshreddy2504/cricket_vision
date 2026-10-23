@@ -56,9 +56,9 @@ logs/
 *.log
 
 # ── Model weights ─────────────────────────────────────────────────────────────
-# Model weights are NOT tracked in git. See docs/TRACKING.md, docs/PITCH.md and
-# docs/SHOTS.md for how to obtain them and how to point the loaders at a local
-# copy.
+# Model weights are ignored by default so local checkpoints cannot be committed
+# accidentally. The four supplied CricketVision checkpoints below are explicit
+# exceptions and are tracked for a fresh-clone install.
 *.pt
 *.pth
 *.ckpt
@@ -67,6 +67,15 @@ logs/
 *.tflite
 *.h5
 *.weights
+
+# The four supplied CricketVision checkpoints are intentionally tracked so a
+# fresh clone can analyse footage without a separate weights download. Nothing
+# else matching the patterns above is tracked. Docker images still mount this
+# directory at runtime instead of copying it into the image.
+!backend/models/ball_detector.pt
+!backend/models/pitch_detect.pt
+!backend/models/pitch_seg_yolo11s.pt
+!backend/models/shot_classifier.ckpt
 
 # ── Footage, datasets and generated media ─────────────────────────────────────
 *.mp4
