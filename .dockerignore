@@ -1,0 +1,42 @@
+# Docker build context for both images.
+#
+# Model weights stay out of the images and are bind-mounted at runtime.
+# Generated analysis state, caches, videos and local secrets never enter a build.
+
+.git
+.gitignore
+.gitattributes
+.env
+.env.*
+!.env.example
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+htmlcov
+node_modules
+frontend/node_modules
+frontend/dist
+frontend/coverage
+data
+backend/models
+logs
+*.log
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.engine
+*.tflite
+*.h5
+*.weights
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+docs

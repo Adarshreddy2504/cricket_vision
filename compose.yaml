@@ -1,0 +1,82 @@
+name: cricketvision
+
+# CPU is the default and is the configuration verified in this repository.
+# For an NVIDIA host, add compose.gpu.yaml:
+#
+#   docker compose -f compose.yaml -f compose.gpu.yaml up --build
+#
+# See README.md for the prerequisite checks. GPU container execution was not
+# verified on this host; only the native CUDA path was.
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        TORCH_INDEX_URL: ${TORCH_INDEX_URL:-https://download.pytorch.org/whl/cpu}
+        TORCH_VERSION: ${TORCH_VERSION:-2.13.0}
+        TORCHVISION_VERSION: ${TORCHVISION_VERSION:-0.28.0}
+    image: cricketvision-backend:local
+    environment:
+      CRICKET_DATA_DIR: /data
+      CRICKET_MODELS_DIR: /models
+      CRICKET_CORS_ORIGINS: ${CRICKET_CORS_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
+      CRICKET_MAX_UPLOAD_BYTES: ${CRICKET_MAX_UPLOAD_BYTES:-2147483648}
+      CRICKET_MAX_JOB_SECONDS: ${CRICKET_MAX_JOB_SECONDS:-3600}
+      CRICKET_TEMP_MAX_AGE_SECONDS: ${CRICKET_TEMP_MAX_AGE_SECONDS:-86400}
+      CRICKET_CLIP_PRE_ROLL: ${CRICKET_CLIP_PRE_ROLL:-10}
+      CRICKET_CLIP_POST_ROLL: ${CRICKET_CLIP_POST_ROLL:-10}
+      CRICKET_CLIP_MAX_FRAMES: ${CRICKET_CLIP_MAX_FRAMES:-600}
+      CRICKET_BALL_DEVICE: ${CRICKET_BALL_DEVICE:-auto}
+      CRICKET_PITCH_DEVICE: ${CRICKET_PITCH_DEVICE:-auto}
+      CRICKET_SHOT_DEVICE: ${CRICKET_SHOT_DEVICE:-auto}
+      CRICKET_BALL_CONF: ${CRICKET_BALL_CONF:-0.30}
+      CRICKET_BALL_ASSOC_CONF: ${CRICKET_BALL_ASSOC_CONF:-0.10}
+    volumes:
+      # Persistent uploaded sources, status/result documents and clips.
+      - cricket_data:/data
+      # Weights are provided by the host, never baked into the image.
+      - ./backend/models:/models:ro
+    ports:
+      - "${CRICKET_API_PORT:-8000}:8000"
+    restart: unless-stopped
+    shm_size: "512m"
+    stop_grace_period: 30s
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4)",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        # Empty means same-origin /api requests, proxied by nginx.
+        VITE_API_URL: ""
+    image: cricketvision-frontend:local
+    ports:
+      - "${CRICKET_FRONTEND_PORT:-8080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 10s
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+
+volumes:
+  cricket_data:
