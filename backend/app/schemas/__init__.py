@@ -1,1 +1,1 @@
-"""Typed records produced and persisted by the tracking pass."""
+"""Typed records produced and persisted by each analysis pass."""
