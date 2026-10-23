@@ -107,6 +107,19 @@ def analysis_status(request: Request, analysis_id: str) -> dict:
     return job.as_dict()
 
 
+@router.post("/analysis/{analysis_id}/cancel", status_code=202)
+def cancel_analysis(request: Request, analysis_id: str) -> dict:
+    """Request cooperative cancellation and return the current status.
+
+    The worker marks the job failed with an explicit "cancelled" reason at its
+    next progress check. A completed job is returned unchanged.
+    """
+    job = _registry(request).cancel(analysis_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Analysis not found.")
+    return job.as_dict()
+
+
 @router.get("/analysis/{analysis_id}/result")
 def analysis_result(request: Request, analysis_id: str) -> JSONResponse:
     registry = _registry(request)
@@ -146,4 +159,4 @@ def analysis_result(request: Request, analysis_id: str) -> JSONResponse:
     return JSONResponse(content=document)
 
 
-__all__ = ["router"]
+__all__ = ["cancel_analysis", "router"]

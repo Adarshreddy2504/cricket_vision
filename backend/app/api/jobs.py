@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shutil
 import threading
 import time
 from dataclasses import dataclass, field
@@ -28,6 +29,14 @@ from .constants import STAGE_BANDS
 log = logging.getLogger(__name__)
 
 TERMINAL_STATUSES = frozenset({"completed", "failed"})
+
+
+class JobCancelled(RuntimeError):
+    """The client asked the job to stop."""
+
+
+class JobDeadlineExceeded(RuntimeError):
+    """The configured processing deadline expired."""
 
 
 def utc_now_iso() -> str:
@@ -60,6 +69,10 @@ class Job:
     started_at: str | None = None
     finished_at: str | None = None
     bytes: int = 0
+    cancel_event: threading.Event = field(
+        default_factory=threading.Event,
+        repr=False,
+    )
 
     def as_dict(self) -> dict:
         """The exact thirteen-key status document the frontend reads."""
@@ -137,6 +150,25 @@ class JobRegistry:
         with self._lock:
             self._jobs.pop(analysis_id, None)
 
+    def cancel(self, analysis_id: str) -> Job | None:
+        """Request cooperative cancellation; the worker owns the final state.
+
+        The endpoint never pretends a running pipeline stopped instantly. The
+        request is recorded, and the next progress check raises
+        `JobCancelled`. A job between model calls may therefore take a little
+        longer to reach its terminal state.
+        """
+        job = self.get(analysis_id)
+        if job is None:
+            return None
+        with self._lock:
+            if job.status in TERMINAL_STATUSES:
+                return job
+            job.cancel_event.set()
+            job.detail = "cancellation requested"
+        self._persist(job)
+        return job
+
     def start(self, job: Job, source_path: Path) -> None:
         if self.settings.run_inline:
             self._run_serialised(job, Path(source_path))
@@ -164,21 +196,37 @@ class JobRegistry:
         job.progress = max(job.progress, STAGE_BANDS["tracking"][0])
         job.detail = "analysis started"
 
+        max_seconds = float(self.settings.max_job_seconds)
+        deadline = (
+            time.monotonic() + max_seconds if max_seconds > 0 else None
+        )
+
+        def check_abort() -> None:
+            if job.cancel_event.is_set():
+                raise JobCancelled("analysis cancelled by client")
+            if deadline is not None and time.monotonic() > deadline:
+                raise JobDeadlineExceeded(
+                    f"processing deadline exceeded ({max_seconds:g}s)"
+                )
+
         def progress(
             stage: str,
             done: int | float,
             total: int | float | None,
             detail: str | None = None,
         ) -> None:
+            check_abort()
             job.update_from_progress(stage, done, total, detail)
 
         try:
+            check_abort()
             result = self.pipeline.run(
                 analysis_id=job.analysis_id,
                 source_path=source_path,
                 run_dir=run_dir,
                 progress=progress,
             )
+            check_abort()
             job.stage = "persisting"
             job.progress = max(job.progress, STAGE_BANDS["persisting"][0])
             job.substage = "writing_documents"
@@ -194,16 +242,56 @@ class JobRegistry:
             job.error = None
             job.finished_at = utc_now_iso()
             self._persist(job)
+        except JobCancelled as exc:
+            log.info("analysis %s cancelled", job.analysis_id)
+            self._fail(
+                job,
+                run_dir,
+                error=str(exc),
+                detail=f"cancelled during {job.stage}",
+            )
+        except JobDeadlineExceeded as exc:
+            log.warning(
+                "analysis %s exceeded its deadline after %ss",
+                job.analysis_id,
+                max_seconds,
+            )
+            self._fail(
+                job,
+                run_dir,
+                error=str(exc),
+                detail=f"deadline exceeded during {job.stage}",
+            )
         except Exception as exc:  # noqa: BLE001 - reported, never swallowed
             log.exception("analysis %s failed", job.analysis_id)
-            job.status = "failed"
-            job.error = str(exc) or type(exc).__name__
-            job.finished_at = utc_now_iso()
-            job.detail = f"failed during {job.stage}"
-            self._persist(job)
+            self._fail(
+                job,
+                run_dir,
+                error=str(exc) or type(exc).__name__,
+                detail=f"failed during {job.stage}",
+            )
         finally:
             if not self.settings.keep_source:
                 self._remove_source(source_path)
+
+    def _fail(self, job: Job, run_dir: Path, *, error: str, detail: str) -> None:
+        """Record a truthful terminal failure and remove partial artifacts."""
+        job.status = "failed"
+        job.error = error
+        job.finished_at = utc_now_iso()
+        job.detail = detail
+        self._cleanup_incomplete(run_dir)
+        self._persist(job)
+
+    @staticmethod
+    def _cleanup_incomplete(run_dir: Path) -> None:
+        """Keep status.json, drop partial clips and unfinished documents."""
+        shutil.rmtree(run_dir / "clips", ignore_errors=True)
+        for name in ("result.json", "diagnostics.json"):
+            try:
+                (run_dir / name).unlink(missing_ok=True)
+            except OSError:
+                log.warning("could not remove partial %s", name, exc_info=True)
 
     def _remove_source(self, source_path: Path) -> None:
         try:
@@ -267,6 +355,7 @@ class JobRegistry:
                 job.error = "the server restarted before this analysis finished"
                 job.detail = "restart recovery"
                 job.finished_at = utc_now_iso()
+                self._cleanup_incomplete(run_dir)
                 self._persist(job)
             with self._lock:
                 self._jobs[job.analysis_id] = job
@@ -287,6 +376,8 @@ def cleanup_stale_temp(settings: Settings, *, max_age_seconds: int = 24 * 60 * 6
 
 __all__ = [
     "Job",
+    "JobCancelled",
+    "JobDeadlineExceeded",
     "JobRegistry",
     "TERMINAL_STATUSES",
     "cleanup_stale_temp",

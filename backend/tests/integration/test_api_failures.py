@@ -12,6 +12,64 @@ from app.api.config import Settings
 from .conftest import FakeRunner, upload_video, wait_for_terminal
 
 
+def test_processing_deadline_fails_a_long_job_and_cleans_partial_clips(
+    tmp_path: Path, sample_video: Path
+):
+    settings = Settings(
+        data_dir=tmp_path / "runtime",
+        run_inline=False,
+        max_job_seconds=0.1,
+    )
+    app = create_app(
+        settings=settings,
+        pipeline_factory=lambda _s: FakeRunner(
+            clip_source=sample_video,
+            sleep_seconds=0.25,
+        ),
+    )
+    with TestClient(app) as slow_client:
+        accepted = upload_video(slow_client, sample_video)
+        analysis_id = accepted.json()["analysis_id"]
+        status = wait_for_terminal(slow_client, analysis_id, timeout=5.0)
+
+        assert status["status"] == "failed"
+        assert "deadline" in (status["error"] or "").lower()
+        run_dir = settings.runs_dir / analysis_id
+        assert (run_dir / "status.json").is_file()
+        assert not (run_dir / "clips").exists()
+        assert not (run_dir / "result.json").exists()
+
+
+def test_client_cancellation_stops_a_running_job(
+    tmp_path: Path, sample_video: Path
+):
+    settings = Settings(data_dir=tmp_path / "runtime", run_inline=False)
+    app = create_app(
+        settings=settings,
+        pipeline_factory=lambda _s: FakeRunner(
+            clip_source=sample_video,
+            sleep_seconds=0.25,
+        ),
+    )
+    with TestClient(app) as slow_client:
+        accepted = upload_video(slow_client, sample_video)
+        analysis_id = accepted.json()["analysis_id"]
+
+        cancelled = slow_client.post(f"/api/analysis/{analysis_id}/cancel")
+        assert cancelled.status_code == 202, cancelled.text
+        assert cancelled.json()["detail"] == "cancellation requested"
+
+        status = wait_for_terminal(slow_client, analysis_id, timeout=5.0)
+        assert status["status"] == "failed"
+        assert "cancelled" in (status["error"] or "").lower()
+        assert "cancelled" in (status["detail"] or "").lower()
+        assert not (settings.runs_dir / analysis_id / "clips").exists()
+
+
+def test_cancelling_an_unknown_analysis_is_404(client):
+    assert client.post("/api/analysis/missing/cancel").status_code == 404
+
+
 def test_pipeline_exception_is_reported_as_a_failed_job(tmp_path: Path, sample_video: Path):
     settings = Settings(data_dir=tmp_path / "runtime", run_inline=True)
     app = create_app(

@@ -1,13 +1,15 @@
 # HTTP API and backend integration (Part 5)
 
 Part 5 puts a real FastAPI server in front of Parts 1–3 and connects them to the
-Part 4 browser client. It implements the six routes in the frontend contract at
-schema **2.1** and pipeline version **1.1.0**.
+Part 4 browser client. It implements the schema **2.1** contract and pipeline
+version **1.1.0**, including a cancellation endpoint added after the original
+six-route contract.
 
 The server does **not** invent the stages that are absent from the feature
-branches. Delivery segmentation, bounce detection, metric calibration and a
-server-side overlay renderer are not implemented. The API reports those
-capabilities as unavailable or unvalidated instead of manufacturing values.
+branches. Delivery segmentation, bounce detection, metric calibration, a
+server-side overlay renderer and variable-frame-rate timestamp modelling are not
+implemented. The API reports those capabilities as unavailable, unvalidated or
+approximate instead of manufacturing values.
 
 ---
 
@@ -32,6 +34,10 @@ Interactive OpenAPI documentation is available at `/docs` and `/redoc`.
 The frontend defaults to `http://127.0.0.1:8000` (`VITE_API_URL`); its Vite
 development server runs on port 8080, which is in the default CORS allow-list.
 Use `CRICKET_CORS_ORIGINS` for any other browser origin.
+
+Copy the repository's `.env.example` to `.env` for the documented defaults.
+Relative model and data paths are resolved against the repository root, not the
+process working directory.
 
 ## Health
 
@@ -72,6 +78,7 @@ runtime. A load failure is reported when the job runs.
 | `POST` | `/api/analyze` | multipart field `video` | `202` analysis accepted |
 | `POST` | `/api/upload` | multipart field `file` | `202` alias with the same behaviour |
 | `GET` | `/api/analysis/{id}/status` | — | `200` status document |
+| `POST` | `/api/analysis/{id}/cancel` | — | `202` current status; cancellation requested |
 | `GET` | `/api/analysis/{id}/result` | — | `200` result envelope |
 | `GET` | `/api/analysis/{id}/clips/{name}` | — | `200` clip bytes, byte ranges supported |
 | `GET` | `/api/health` | — | `200` health document |
@@ -141,6 +148,22 @@ the container does not declare a frame count.
 
 A failed job stores the exception text in `error` and leaves `result.json`
 absent. `GET …/result` returns `409` while queued/running and for a failed job.
+
+### Cancellation and deadlines
+
+`POST /api/analysis/{id}/cancel` records a cancellation request and returns
+`202` with the current status document. A completed or already-failed job is
+returned unchanged. Cancellation is cooperative: the worker raises at its next
+progress check, marks the job `failed`, sets `error` to
+`analysis cancelled by client`, sets `detail` to `cancelled during <stage>`, and
+removes partial clips/documents while keeping `status.json`. A single blocking
+model call is not pre-empted.
+
+`CRICKET_MAX_JOB_SECONDS` (default `3600`) is a processing safety net measured
+from worker start. It is checked at the same progress boundaries. When exceeded,
+the job becomes `failed` with a `processing deadline exceeded (<n>s)` error and
+the same partial-artifact cleanup. The deadline is not a promised latency and
+does not interrupt an in-flight OpenCV/torch call.
 
 ### Result envelope
 
@@ -225,6 +248,15 @@ replaced by `0`, `false`, an empty label or a guessed geometry.
 `confidence: null`; there is no measurement to attach. `continuity` is
 `"continuous"` or `"gapped"`. Gaps are not interpolated.
 
+A detection below `CRICKET_BALL_CONF` may still be reported as `"detected"` if
+an already-live track exists and the Kalman gate accepts it. It can never start
+a track. Its real confidence is preserved, and `diagnostics.json` records the
+weaker provenance under `tracking.low_confidence_points` and the
+`trajectory_contains_low_confidence_detections` flag. The served point schema is
+unchanged; per-point low-confidence provenance is intentionally diagnostic-only
+so raw detections, tracked points and predictions remain distinguishable without
+silently upgrading a weak box.
+
 The pitch block has `state`, `detected`, `calibrated`, `confidence`,
 `using_previous_calibration`, `keypoints`, `corners`, `center`,
 `homography_available`, `orientation`, `source` and `geometry_reason`.
@@ -255,7 +287,8 @@ generated basename.
 
 ## Model weights
 
-No weights are tracked in git and none are downloaded automatically.
+The four supplied checkpoints are tracked under `backend/models/`. No weights
+are downloaded automatically.
 
 | File | Environment override | Required? | Behaviour when missing or unloadable |
 |---|---|---|---|
@@ -280,6 +313,20 @@ turns each confirmed track into a **candidate delivery**: a clip window with
 Every delivery carries `candidate_delivery_boundary_unvalidated` and
 `requires_human_review: true`. No delivery segmentation model exists in the
 combined branches.
+
+### Timebase and timestamps
+
+Frame indices are authoritative and 1-based in the tracking output. The
+container's `CAP_PROP_FPS` supplies the frame rate. Seconds are derived from
+frame counts and that rate; per-frame presentation timestamps are not read or
+preserved, constant frame rate is assumed, and variable-frame-rate footage is
+unsupported.
+
+`diagnostics.json` records this explicitly under `video.timebase`, including
+`per_frame_timestamps_preserved: false`. If the container reports no usable fps,
+clip duration is `null` and clip encoding fails with `invalid_video_fps` rather
+than inventing a rate. Frame-sampling filters (for pitch and shot inference) are
+separate from timeouts: they reduce work and are not a processing deadline.
 
 ### Bounce detection is unavailable
 
@@ -345,11 +392,16 @@ data/
 ```
 
 Rejected uploads create no `runs/<id>` directory. Temporary files older than
-24 hours are removed at startup. On restart, a persisted status that is still
-`queued` or `running` is marked `failed` with
-`"the server restarted before this analysis finished"`; it is never resumed
-under a new process. Analyses are executed on daemon threads but serialized
-around the shared model instances.
+`CRICKET_TEMP_MAX_AGE_SECONDS` (default 24 hours) are removed at startup. On
+restart, a persisted status that is still `queued` or `running` is marked
+`failed` with `"the server restarted before this analysis finished"`; partial
+clips/documents are removed and the job is never resumed under a new process.
+Analyses are executed on daemon threads but serialized around the shared model
+instances.
+
+A failed, cancelled or deadline-exceeded job keeps `status.json` and removes
+`clips/`, `result.json` and `diagnostics.json`. The uploaded source is removed in
+all terminal cases unless `CRICKET_KEEP_SOURCE=true`.
 
 ## Verification
 

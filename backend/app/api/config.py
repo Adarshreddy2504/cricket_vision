@@ -72,6 +72,12 @@ class Settings:
     clip_pre_roll_frames: int = 10
     clip_post_roll_frames: int = 10
     max_clip_frames: int = 600
+    # A processing deadline is a safety net for a stuck job, not a target.
+    # It is checked between measured progress updates, so a single blocking
+    # model call can overrun it before the next check.
+    max_job_seconds: float = 3600.0
+    # Abandoned upload fragments older than this are removed at startup.
+    temp_max_age_seconds: int = 24 * 60 * 60
     cors_origins: tuple[str, ...] = DEFAULT_CORS_ORIGINS
 
     @property
@@ -94,8 +100,17 @@ class Settings:
     def from_env(cls) -> Settings:
         data_dir = _env("CRICKET_DATA_DIR")
         origins = _env("CRICKET_CORS_ORIGINS")
+        if data_dir:
+            configured = Path(data_dir).expanduser()
+            data_dir_path = (
+                configured
+                if configured.is_absolute()
+                else (PROJECT_DIR / configured).resolve()
+            )
+        else:
+            data_dir_path = DEFAULT_DATA_DIR
         settings = cls(
-            data_dir=Path(data_dir).expanduser() if data_dir else DEFAULT_DATA_DIR,
+            data_dir=data_dir_path,
             run_inline=_env_bool("CRICKET_RUN_INLINE", False),
             keep_source=_env_bool("CRICKET_KEEP_SOURCE", False),
             max_upload_bytes=_env_int(
@@ -106,6 +121,14 @@ class Settings:
             clip_pre_roll_frames=_env_int("CRICKET_CLIP_PRE_ROLL", 10, minimum=0),
             clip_post_roll_frames=_env_int("CRICKET_CLIP_POST_ROLL", 10, minimum=0),
             max_clip_frames=_env_int("CRICKET_CLIP_MAX_FRAMES", 600, minimum=1),
+            max_job_seconds=_env_int(
+                "CRICKET_MAX_JOB_SECONDS", 3600, minimum=1
+            ),
+            temp_max_age_seconds=_env_int(
+                "CRICKET_TEMP_MAX_AGE_SECONDS",
+                24 * 60 * 60,
+                minimum=60,
+            ),
             cors_origins=(
                 tuple(part.strip() for part in origins.split(",") if part.strip())
                 if origins

@@ -62,8 +62,10 @@ async def save_validated_upload(
                     break
                 size += len(chunk)
                 if size > settings.max_upload_bytes:
+                    limit_gib = settings.max_upload_bytes / (1024 ** 3)
                     raise UploadRejected(
-                        "The uploaded video is larger than the 2 GiB limit.",
+                        "The uploaded video is larger than the configured "
+                        f"limit ({limit_gib:.2f} GiB).",
                         status_code=413,
                     )
                 handle.write(chunk)

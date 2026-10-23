@@ -38,7 +38,10 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         settings.ensure_dirs()
-        cleanup_stale_temp(settings)
+        cleanup_stale_temp(
+            settings,
+            max_age_seconds=settings.temp_max_age_seconds,
+        )
         pipeline = factory(settings)
         registry = JobRegistry(settings, pipeline)
         registry.load_existing()
