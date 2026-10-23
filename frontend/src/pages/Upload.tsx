@@ -39,9 +39,21 @@ const LIMITS = [
 
 const NEXT_STEPS = [
   { title: "Validate", detail: "The type, size and container are checked before upload." },
-  { title: "Track", detail: "The pipeline detects the ball and segments each delivery." },
-  { title: "Analyse", detail: "Pitch geometry, shot labels and bowling metrics are computed." },
-  { title: "Review", detail: "You land on the result with playback, overlays and filters." },
+  {
+    title: "Track",
+    detail:
+      "The pipeline detects and follows the ball. Each confirmed track becomes a candidate delivery window, never a validated boundary.",
+  },
+  {
+    title: "Analyse",
+    detail:
+      "Pitch calibration where detectable, shot labels when the checkpoint is available, and measured trajectory statistics.",
+  },
+  {
+    title: "Review",
+    detail:
+      "You land on the result with playback, client-rendered overlays and filters. Physical bowling metrics need metric calibration and otherwise stay unavailable.",
+  },
 ];
 
 const UploadPage = () => {
@@ -173,8 +185,11 @@ const UploadPage = () => {
         </Badge>
         <h1 className="text-3xl font-extrabold tracking-tight md:text-4xl">Analyse a video</h1>
         <p className="mt-2 text-muted-foreground">
-          Choose one clip. It is validated here, uploaded once and processed into tracked
-          deliveries, a calibrated pitch, shot labels and bowling metrics.
+          Choose one clip. It is validated here, uploaded once and processed into
+          candidate delivery tracks, pitch calibration where the footage supports
+          it, and shot labels when the classifier checkpoint is present. Physical
+          bowling speed, line and length stay unavailable until metric calibration
+          is supplied.
         </p>
       </header>
 

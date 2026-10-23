@@ -4,18 +4,19 @@
  * CONTRACT
  * --------
  * The paths and payloads below are the documented contract (schema 2.1,
- * docs/API_CONTRACT.md in the backend). No endpoint is invented here:
+ * docs/API.md in the repository). No endpoint is invented here:
  *
  *   POST /api/analyze                              multipart `video`
  *   POST /api/upload                               multipart `file`
  *   GET  /api/analysis/{id}/status                 progress document
+ *   POST /api/analysis/{id}/cancel                 cooperative cancellation
  *   GET  /api/analysis/{id}/result                 result envelope
  *   GET  /api/analysis/{id}/clips/{name}           clip bytes (byte-range)
  *   GET  /api/health                               versions + stage vocabulary
  *
- * Part 5 implements the server. Until it is running, `uploadVideo` reports a
- * connection failure instead of pretending to analyse anything, and the UI
- * offers the clearly-labelled demo dataset in `demo.ts`.
+ * If the backend is not running, `uploadVideo` reports a connection failure
+ * instead of pretending to analyse anything. The UI offers the clearly-labelled
+ * demo dataset in `demo.ts`.
  *
  * HONESTY RULES ENCODED HERE
  * --------------------------
@@ -463,6 +464,13 @@ export function uploadVideo(
   });
 }
 
+function parseStatus(body: unknown): AnalysisStatus {
+  if (!isObject(body) || typeof body.analysis_id !== "string") {
+    throw contractError("the status response has no analysis_id");
+  }
+  return body as unknown as AnalysisStatus;
+}
+
 /** `GET /api/analysis/{id}/status`. */
 export function fetchStatus(
   analysisId: string,
@@ -472,12 +480,26 @@ export function fetchStatus(
     `/analysis/${encodeURIComponent(analysisId)}/status`,
     { method: "GET" },
     options,
-    (body) => {
-      if (!isObject(body) || typeof body.analysis_id !== "string") {
-        throw contractError("the status response has no analysis_id");
-      }
-      return body as unknown as AnalysisStatus;
-    },
+    parseStatus,
+  );
+}
+
+/**
+ * `POST /api/analysis/{id}/cancel` — cooperative cancellation.
+ *
+ * The response is the current status document. A running job may remain
+ * `running` until the pipeline reaches its next progress check; callers must
+ * keep polling rather than assume the job stopped immediately.
+ */
+export function cancelAnalysis(
+  analysisId: string,
+  options: RequestOptions = {},
+): Promise<AnalysisStatus> {
+  return requestJson(
+    `/analysis/${encodeURIComponent(analysisId)}/cancel`,
+    { method: "POST" },
+    options,
+    parseStatus,
   );
 }
 
